@@ -1,0 +1,9 @@
+{
+  "name": "victim-app",
+  "version": "0.1.0",
+  "description": "Innocent app that pulls in a compromised dependency",
+  "private": true,
+  "dependencies": {
+    "evil-utils": "file:../evil-utils"
+  }
+}

@@ -1,0 +1,33 @@
+name: supply-chain-lab
+
+services:
+  # 1. The attacker's collection server (receives the beacon + exfiltrated secrets).
+  attacker:
+    build: ./attacker
+    container_name: sc-attacker
+    networks: [labnet]
+    ports:
+      - "4444:4444"   # exposed so you can also watch beacons from the host
+
+  # 2. The compromised internal package registry serving the poisoned lib.
+  registry:
+    build:
+      context: .
+      dockerfile: registry/Dockerfile
+    container_name: sc-registry
+    networks: [labnet]
+    depends_on: [attacker]
+
+  # 3. The victim CI build agent that installs the dependency.
+  victim:
+    build: ./victim
+    container_name: sc-victim
+    networks: [labnet]
+    depends_on: [registry, attacker]
+    restart: "no"
+
+networks:
+  labnet:
+    driver: bridge
+    # No 'internal: true' so images can be pulled/built; the attack traffic
+    # itself only ever uses container DNS names on this bridge.

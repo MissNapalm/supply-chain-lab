@@ -1,0 +1,11 @@
+{
+  "name": "evil-utils",
+  "version": "1.0.0",
+  "description": "Lab-only package demonstrating install-time code execution",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

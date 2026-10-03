@@ -1,0 +1,8 @@
+# Innocent-looking requirement that points at the compromised package.
+#
+# NOTE: this path is relative to your CURRENT DIRECTORY, not to this file (pip does
+# not rewrite requirement paths). Run it from THIS directory so `../pip-evil`
+# resolves to the lab's pip-evil/:
+#     cd pip-victim
+#     LAB_HOST=127.0.0.1 CI_DEPLOY_TOKEN="demo-token" pip install -r requirements.txt
+../pip-evil

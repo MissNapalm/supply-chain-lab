@@ -1,0 +1,6 @@
+setup.py
+awesome_utils/__init__.py
+awesome_utils.egg-info/PKG-INFO
+awesome_utils.egg-info/SOURCES.txt
+awesome_utils.egg-info/dependency_links.txt
+awesome_utils.egg-info/top_level.txt

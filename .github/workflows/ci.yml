@@ -1,0 +1,24 @@
+name: build
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # A deploy secret injected into the build env, exactly as a real CI platform does.
+      CI_DEPLOY_TOKEN: ${{ secrets.CI_DEPLOY_TOKEN }}
+      # Where the dependency's install hook will phone home (an external collector).
+      LAB_HOST: ${{ vars.LAB_HOST }}
+      LAB_PORT: "4444"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependency from source
+        # pip must BUILD the sdist -> setup.py runs -> the install hook fires here,
+        # before any application code, with access to the build environment.
+        run: |
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install --no-cache-dir ./malicious-pkg
+
+      - name: Use the library (build looks perfectly healthy)
+        run: /tmp/venv/bin/python -c "import awesome_utils; print('app output:', awesome_utils.shout('build complete'))"
