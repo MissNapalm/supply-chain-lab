@@ -28,7 +28,7 @@ try {
 const marker = [
   '=== SUPPLY-CHAIN LAB BEACON ===',
   'event:        npm postinstall hook fired',
-  'package:      evil-utils',
+  'package:      test_library',
   'time:         ' + new Date().toISOString(),
   'hostname:     ' + os.hostname(),
   'user:         ' + (os.userInfo().username || 'unknown'),

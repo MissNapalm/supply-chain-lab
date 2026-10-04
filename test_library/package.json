@@ -1,5 +1,5 @@
 {
-  "name": "evil-utils",
+  "name": "test_library",
   "version": "1.0.0",
   "description": "Lab-only package demonstrating install-time code execution",
   "main": "index.js",
