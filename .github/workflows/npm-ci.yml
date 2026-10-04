@@ -1,0 +1,22 @@
+name: npm-build
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: self-hosted          # dispatched by github.com to YOUR local runner
+    env:
+      CI_DEPLOY_TOKEN: ${{ secrets.CI_DEPLOY_TOKEN }}   # a repo secret, injected like real CI
+      LAB_HOST: "127.0.0.1"       # the runner is local, so the collector is on loopback
+      LAB_PORT: "4444"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        # npm runs evil-utils's postinstall hook here, during install,
+        # before any app code — it reads CI_DEPLOY_TOKEN and beacons out.
+        working-directory: victim-app
+        run: npm install
+
+      - name: App runs fine (build looks healthy)
+        working-directory: victim-app
+        run: node -e "console.log('app output: build complete')"
