@@ -3,10 +3,10 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     env:
       CI_DEPLOY_TOKEN: ${{ secrets.CI_DEPLOY_TOKEN }}
-      LAB_HOST: "127.0.0.1"
+      LAB_HOST: "host.docker.internal"
       LAB_PORT: "4444"
     steps:
       - uses: actions/checkout@v4
