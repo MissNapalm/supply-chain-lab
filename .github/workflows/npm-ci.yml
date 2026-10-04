@@ -6,7 +6,7 @@ jobs:
     runs-on: host-mac
     env:
       CI_DEPLOY_TOKEN: ${{ secrets.CI_DEPLOY_TOKEN }}
-      LAB_HOST: "127.0.0.1"
+      LAB_HOST: "10.37.129.50"
       LAB_PORT: "4444"
     steps:
       - uses: actions/checkout@v4
