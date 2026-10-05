@@ -85,7 +85,8 @@ jobs:
 
       - name: App runs fine (victim notices nothing)
         working-directory: victim-app
-        run: node -e "console.log('app output: build complete')"
+        run: |
+          node -e "console.log('app output: build complete')"
 
       - name: Tear down lab services
         if: always()
