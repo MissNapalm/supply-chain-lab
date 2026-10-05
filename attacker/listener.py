@@ -12,13 +12,16 @@ There is still no command channel back to the victim. The "weapon" here is the
 stolen token itself, used against a service that genuinely validates it.
 """
 import json
+import os
 import re
 import socket
 import urllib.request
 from datetime import datetime
 
 PORT = 4444
-DEPLOY_API = "http://deploy-api:9000"
+# Defaults to the docker-compose service name; override with DEPLOY_API when the
+# collector and deploy-api are co-located (e.g. a single CI runner on localhost).
+DEPLOY_API = os.environ.get("DEPLOY_API", "http://deploy-api:9000")
 
 
 def _post_deploy(token: str):
