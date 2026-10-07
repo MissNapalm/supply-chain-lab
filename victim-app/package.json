@@ -4,6 +4,6 @@
   "description": "Innocent app that pulls in a compromised dependency",
   "private": true,
   "dependencies": {
-    "test_library": "^1.0.0"
+    "test_library": "file:../test_library"
   }
 }
