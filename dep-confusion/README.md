@@ -16,7 +16,7 @@ package required.
    - **public** (attacker): version `99.0.0`  ← higher version wins
 
 3. With a naive `npm install` (no scoped-registry pinning), the resolver takes
-   `99.0.0`, whose `postinstall` beacons — reuse `evil-utils/postinstall.js`.
+   `99.0.0`, whose `postinstall` beacons — reuse `test_library/postinstall.js`.
 
 ## The defense to demonstrate
 Pin the scope to the private registry so the public name can never resolve:

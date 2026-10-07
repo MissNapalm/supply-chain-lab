@@ -27,8 +27,12 @@ cd victim-app && npm install          # resolves ^1.0.0 from :4873, postinstall 
 ```
 `victim-app/.npmrc` points npm at `http://127.0.0.1:4873/`. The registry is
 offline and bound to localhost; nothing is ever published to public npm.
-Start a collector first (`cd attacker && python listener.py`, or
-`ncat -lvnkp 4444`) to catch the check-in.
+
+Catch the check-in with a collector on :4444 first — simplest is
+`ncat -lvnkp 4444`. (`attacker/listener.py` is the fuller collector that also
+*replays* the stolen token, but it needs `deploy-api` running, so that's the
+Docker/CI chain in scenario A, not local B.) `publish.sh` leaves Verdaccio
+running in the background; stop it with `pkill -f verdaccio` when you're done.
 
 ### C. pip, local
 ```
