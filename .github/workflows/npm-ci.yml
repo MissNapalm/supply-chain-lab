@@ -21,6 +21,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       # The whole attack chain runs in ONE shell so the background lab services
       # (deploy-api, attacker listener) are guaranteed alive when the beacon
       # fires — no reliance on a detached process surviving between steps.
@@ -35,8 +40,12 @@ jobs:
           # directly. listener.py's replay target is set via DEPLOY_API below —
           # no /etc/hosts hacks, portable across act and GitHub-hosted.
           export DEPLOY_API="http://127.0.0.1:9000"
+          export LAB_VERDACCIO_PIDFILE="$RUNNER_TEMP/verdaccio.pid"
 
-          cleanup() { kill "${DPID:-}" "${APID:-}" 2>/dev/null || true; }
+          cleanup() {
+            kill "${DPID:-}" "${APID:-}" 2>/dev/null || true
+            [ -f "$LAB_VERDACCIO_PIDFILE" ] && kill "$(cat "$LAB_VERDACCIO_PIDFILE")" 2>/dev/null || true
+          }
           trap cleanup EXIT
 
           # 1. real HS256 token service
@@ -63,7 +72,15 @@ jobs:
           export CI_DEPLOY_TOKEN="$TOK"   # not masked on purpose — showing it leak is the point
           echo "[ci] CI_DEPLOY_TOKEN set (live signed deploy JWT, ${#TOK} chars)"
 
-          # 4. compromised install fires the beacon, stealing the token
+          # 4. stand up the internal npm registry and publish the poisoned
+          #    package to it — the realistic delivery path (victim pulls a
+          #    version range from a registry, not a local file:). Local-only,
+          #    offline; Verdaccio itself is the sole fetch from public npm.
+          sh registry-npm/publish.sh
+          echo "[ok] poisoned test_library served from internal registry"
+
+          # 5. compromised install fires the beacon, stealing the token.
+          #    victim-app/.npmrc points npm at the local registry on :4873.
           ( cd victim-app && npm install )   # <-- postinstall hook runs here
           sleep 3                            # let the collector receive + replay
 

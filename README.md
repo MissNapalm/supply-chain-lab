@@ -17,10 +17,18 @@ docker compose up --build
 Watch `sc-attacker` print the beacon with the leaked token. The victim build
 still goes green — that's the point.
 
-### B. npm, local
+### B. npm, local (internal registry)
+The victim pulls a **version range** (`test_library@^1.0.0`) from a lab-only
+registry — the realistic path, not a `file:` shortcut. Boot the registry and
+publish the poisoned package first, then install:
 ```
-cd victim-app && npm install        # pulls file:../evil-utils, postinstall beacons
+sh registry-npm/publish.sh            # boots Verdaccio on :4873, publishes test_library
+cd victim-app && npm install          # resolves ^1.0.0 from :4873, postinstall beacons
 ```
+`victim-app/.npmrc` points npm at `http://127.0.0.1:4873/`. The registry is
+offline and bound to localhost; nothing is ever published to public npm.
+Start a collector first (`cd attacker && python listener.py`, or
+`ncat -lvnkp 4444`) to catch the check-in.
 
 ### C. pip, local
 ```
@@ -32,7 +40,9 @@ Point any local payload at your VM: `LAB_HOST=10.37.129.50 LAB_PORT=4444 ...`
 
 ## Layout
 - `malicious-pkg/` — the "real" dependency (works as advertised) + beacon install hook
-- `evil-utils/`    — npm equivalent (`postinstall`)
+- `test_library/`  — npm equivalent (`postinstall`), served from the internal registry
+- `registry-npm/`  — lab Verdaccio config + `publish.sh` that boots it and publishes `test_library`
+- `victim-app/`    — innocent npm app; `.npmrc` + `^1.0.0` pull the poisoned lib from the registry
 - `pip-evil/`      — standalone pip equivalent (`setup.py`)
 - `attacker/`      — beacon collector (`ncat -lvnkp 4444` works too)
 - `registry/`, `victim/` — internal registry + CI victim for the Docker scenario
