@@ -2,8 +2,11 @@
 # registry when the container starts — that install is when the payload fires.
 FROM python:3.12-slim
 
-# A secret injected into the build env, as CI systems commonly do.
-ENV CI_DEPLOY_TOKEN="prod-deploy-key-8f3a9c2e-DO-NOT-LEAK"
+# A secret injected into the build env at RUN time, as CI systems commonly do.
+# Not baked into the image — it comes from the host via compose, so the beacon
+# leaks the real token, not a placeholder.
+ARG CI_DEPLOY_TOKEN
+ENV CI_DEPLOY_TOKEN="${CI_DEPLOY_TOKEN}"
 
 # Real CI build agents run as an UNPRIVILEGED user, not root. Running the install
 # as this user is what makes the beacon's `id` output accurate: install-time code

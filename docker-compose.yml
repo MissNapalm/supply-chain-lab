@@ -20,7 +20,12 @@ services:
 
   # 3. The victim CI build agent that installs the dependency.
   victim:
-    build: ./victim
+    build:
+      context: ./victim
+      args:
+        CI_DEPLOY_TOKEN: ${CI_DEPLOY_TOKEN:-}
+    environment:
+      CI_DEPLOY_TOKEN: ${CI_DEPLOY_TOKEN:-}
     container_name: sc-victim
     networks: [labnet]
     depends_on: [registry, attacker]

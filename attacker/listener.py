@@ -16,7 +16,7 @@ import os
 import re
 import socket
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 
 PORT = 4444
 # Defaults to the docker-compose service name; override with DEPLOY_API when the
@@ -81,7 +81,7 @@ def main():
 
     while True:
         conn, addr = srv.accept()
-        ts = datetime.utcnow().strftime("%H:%M:%S")
+        ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
         print("\n" + "=" * 60)
         print(f"[{ts}] BEACON from {addr[0]}:{addr[1]}")
         print("=" * 60, flush=True)

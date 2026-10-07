@@ -6,6 +6,19 @@ until python -c "import urllib.request,sys; urllib.request.urlopen('http://regis
     sleep 1
 done
 
+echo "[victim] Waiting for deploy-api..."
+until python -c "import urllib.request,sys; urllib.request.urlopen('http://deploy-api:9000/health', timeout=2)" 2>/dev/null; do
+    sleep 1
+done
+
+# Obtain a REAL deploy credential at build start, the way a CI job fetches one
+# from its secrets store / OIDC provider. This live JWT is what sits in the
+# build env -- and what the install hook is about to steal.
+echo "[victim] Fetching deploy credential from deploy-api..."
+export CI_DEPLOY_TOKEN="$(python -c "import urllib.request,json; print(json.load(urllib.request.urlopen('http://deploy-api:9000/token', timeout=4))['token'])")"
+echo "[victim] CI_DEPLOY_TOKEN is set (a live, signed deploy JWT)."
+echo
+
 echo "[victim] Installing dependencies from internal registry..."
 echo "[victim] (this is the moment the supply-chain payload executes)"
 echo

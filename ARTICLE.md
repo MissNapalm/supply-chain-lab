@@ -161,6 +161,18 @@ The lab ships a detection + mitigation track. The short version:
 
 ---
 
+## Why the leaked token is already game over
+
+It's tempting to think a leaked `CI_DEPLOY_TOKEN` is only *potential* damage — that the attacker still has to crack something, or log in, or get past a second factor. They don't. The token **is** the login.
+
+When your CI runner calls the API, it proves who it is by attaching the token to the request — a single header, `Authorization: Bearer <token>`. The server's only check is "is this string valid and not revoked." It is not bound to your machine, your IP, your browser session, or any device fingerprint. There is nothing for the server to compare a replay against.
+
+So the moment the beacon catches that string, the attacker performs the *identical* operation from their own machine: same token, same header, same server check — and the API answers as you. No login screen ever appears. A password buys you a session; a bearer token **is** the session. That's not a quirk of this lab — it's the definition of the credential type. If it authenticates once, it authenticates anywhere, for anyone holding the string, until someone revokes it.
+
+That's the whole reason install-time code reading one environment variable is a full compromise and not a near-miss — and why the only real mitigations are *don't let it leak* (`--ignore-scripts`, wheels) and *make it worthless if it does* (short-lived, scoped OIDC tokens instead of long-lived secrets).
+
+---
+
 ## Try it yourself
 
 The full lab — npm and pip payloads, a Dockerized internal-registry scenario, a dependency-confusion walkthrough, and the detection scripts — is laid out so you can run every piece in minutes. Stand up the collector, install the package, watch your own secrets walk out the door, then turn on `--ignore-scripts` / wheels and watch it go quiet.

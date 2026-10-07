@@ -1,0 +1,14 @@
+# Lab-only npm registry (Verdaccio). Bound to 127.0.0.1 -> only this Mac reaches it.
+# NO uplink/proxy: fully offline, serves only what we publish locally.
+storage: /verdaccio/storage
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+    max_users: -1
+packages:
+  '**':
+    access: $all
+    publish: $all
+    unpublish: $all
+listen: 0.0.0.0:4873
+log: {type: stdout, format: pretty, level: warn}
